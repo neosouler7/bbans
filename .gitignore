@@ -1,5 +1,6 @@
 /venv
 config.json
+chromedriver_mac64/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,13 +1,21 @@
 {
+    "chrome": {
+        "driver_location": "/Users/jh/pythonProjects/bbans/chromedriver_mac64"
+    },
     "tg": {
-        "token": "",
+        "token": "ddddddd",
         "chat_ids": [72309198],
         "workers": 32,
         "conn_pool": 36
     },
     "keywords": {
+        "common": ["정의선"],
+        "assemble": ["기아"],
+        "service": ["현대오토에버"]
+    },
+    "keywords2": {
         "common": ["정의선", "현대자동차그룹"],
-        "assemble": ["현대자동차", "현대차", "기아"],
+        "assemble": ["현대차", "기아"],
         "steel": ["현대제철", "현대비엔지스틸", "현대종합특수강"],
         "construction": ["현대건설", "현대엔지니어링", "현대스틸산업", "현대도시개발"],
         "financial": ["현대캐피탈", "현대카드", "현대커머셜", "현대차투자증권", "현대라이프"],
@@ -18,8 +26,9 @@
         "api_key": "abc"
     },
     "mail": {
-        "id": "dddd@gmail.com",
-        "pwd": "dddd@gmail.com",
-        "recipients": ["dddd@gmail.com"]
+        "id": "ddd",
+        "pwd": "ddd",
+        "to": ["ddd@gmail.com"],
+        "cc": ["ddd@gmail.com"]
     }
 }
