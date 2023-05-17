@@ -8,14 +8,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 
-from utils import read_config, get_current_time
+from manager.utils import read_config, get_current_time, to_date_dot, DATE_FORMAT_YmdHMS
 from collections import defaultdict
 from datetime import datetime
-import os
-import asyncio
 
-# TARGET_URL = "https://search.naver.com/search.naver?where=news&sort=1&ds=2023.05.17&de=2023.05.17&nspo=nspo=so:dd,p:from20230517to20230517,a:all&query=현대차"
-TARGET_URL = "https://search.naver.com/search.naver?where=news&sort=1&ds={start_date_dot}&de={end_date_dot}&nspo=nspo=so:dd,p:from{start_date}}to{end_date},a:all&query={query}&start={page_cnt}"
+TARGET_URL = "https://search.naver.com/search.naver?where=news&sort=1&ds={start_date_dot}&de={end_date_dot}&nso=so:r,p:from{start_date}to{end_date},a:all&query={keyword}&start={article_cnt}"
 
 
 class Naver:
@@ -32,11 +29,12 @@ class Naver:
             service=Service(ChromeDriverManager().install()), 
             options=options
         )
-        self.news = defaultdict(list)
+        self.news = list()
 
-    def __get_news_template(self, a_id, url, title, publisher, published_at):
+    def __get_news_template(self, section, keyword, url, title, publisher, published_at):
         t = {
-            'a_id': a_id,
+            'section': section,
+            'keyword': keyword,
             'url': url,
             'title': title,
             'publisher': publisher,
@@ -56,60 +54,62 @@ class Naver:
             pass
 
     def get_news_info(self, section, keyword, start_date, end_date):
-        # 페이지 단위로 검색을 하면서, 다음이 없을 떄까지 while
-        # 즉 기존 get_total_page_cnt 양식 활용해서 로직 짜기
-
-        page_cnt, idx = 1, 1
+        start_date_dot, end_date_dot = to_date_dot(start_date), to_date_dot(end_date)
+        article_cnt, idx = 1, 0
         while True:
-            start_date_dot, end_date_dot = start_date, end_date # TODO. make conversing function
-            url = TARGET_URL.format(start_date_dot=start_date_dot, end_date_dot=end_date_dot, start_date=start_date, end_date=end_date, query=query, page_cnt=page_cnt)
-            print(url)
-
-            self.__wait_for("paging") # 각 신문사 별 하단 페이징 요소 로딩 될 때까지 대기
-
-            # TODO.
-            # 1. parsing 해서 저장
-            # 2. 다음 PAGING 할 부분이 있는지 확인
-            # 3. 없으면? break
-            # 4. 있으면 idx += 1, page_cnt = 10 * idx + 1 
-
-        # total_page_cnt = self.get_total_page_cnt(p_id=p_id, target_date=target_date)
-        # for page in range(1, total_page_cnt+1):
-        #     url = NAVER_URL.format(p_id=p_id, target_date=target_date, page=page)
-        #     self.browser.get(url)
-        #     print(url)
-
-        #     self.__wait_for("paging") # 각 신문사 별 하단 페이징 요소 로딩 될 때까지 대기
-
-        #     p_list = self.browser.find_elements(By.CLASS_NAME, "type02")
-        #     for p in p_list:
-        #         n_list = p.find_elements(By.TAG_NAME, "a")
-        #         for n in n_list:
-        #             title, url = n.text, n.get_attribute("href")
-        #             a_id = url.split("?")[0].split("/")[-1]
-
-        #             self.news[p_id].append(self.__get_news_template(a_id, url, title, None, None))
+            target_url = TARGET_URL.format(start_date_dot=start_date_dot, end_date_dot=end_date_dot, start_date=start_date, end_date=end_date, keyword=keyword, article_cnt=article_cnt)
+            print(target_url)
             
-        # text = f'{target_date} - {self.publisher.get(p_id)}_{total_page_cnt} pages_{len(self.news.get(p_id))} news'
-        # print(text)
+            self.browser.get(target_url)
+            # self.__wait_for("sc_page") # 각 신문사 별 하단 페이징 요소 로딩 될 때까지 대기
+
+            news_list = self.browser.find_element(By.CLASS_NAME, "list_news").find_elements(By.TAG_NAME, "li")
+            for news in news_list:
+                info_group = news.find_element(By.CLASS_NAME, "news_info").find_element(By.CLASS_NAME, "info_group")
+                news_area = news.find_element(By.CLASS_NAME, "news_area")
+                news_tit = news_area.find_element(By.CLASS_NAME, "news_tit")
+
+                publisher = info_group.find_element(By.TAG_NAME, "a").text
+                title, url = news_tit.text, news_tit.get_attribute("href")
+
+                temp = self.__get_news_template(
+                    section = section,
+                    keyword = keyword,
+                    url = url, 
+                    title = title, 
+                    publisher = publisher,
+                    published_at = f"{start_date[4:6]}/{start_date[6:]}"
+                )
+                self.news.append(temp)
+
+
+            page_list = self.browser.find_element(By.CLASS_NAME, "sc_page").find_element(By.CLASS_NAME, "sc_page_inner").find_elements(By.TAG_NAME, "a")
+            max_page = max([p.text for p in page_list])
+            for page in page_list:
+                if page.text == max_page and page.get_attribute("aria-pressed") == "true": # 리턴되는 가장 큰 페이지가 true로 반환 될 때
+                    return
+
+            idx += 1
+            article_cnt = 10 * idx + 1  
 
     def finish(self):
         self.browser.quit()
 
-    async def crawl(self, start_date, end_date=None):
-        self.news = None
+    def crawl(self, start_date, end_date=None):
+        self.news.clear()
 
         if end_date is None:
             end_date = start_date
 
-        tasks = []
+        start_time = datetime.strptime(get_current_time(DATE_FORMAT_YmdHMS), DATE_FORMAT_YmdHMS)
+
         for section, keyword_list in self.keywords.items():
             for keyword in keyword_list:
                 print(f'Requested {section} {keyword}')
-                tasks.append(asyncio.create_task(self.get_news_info(section, keyword, start_date, end_date)))
-        
-        for task in tasks:
-            await task
+                self.get_news_info(section, keyword, start_date, end_date)
+
+        end_time = datetime.strptime(get_current_time(DATE_FORMAT_YmdHMS), DATE_FORMAT_YmdHMS)
+        print(f'\n{start_date} ~ {end_date} {len(self.news)} news with {(end_time - start_time).total_seconds()}s\n')
 
         self.finish()
 

@@ -1,24 +1,28 @@
 import datetime
 import threading
+import asyncio
 
 from manager.tg import Tg
 from manager.naver import Naver
-from manager.chatgpt import Chatgpt
-from manager.utils import read_config, get_current_time
+from manager.chatgpt import ChatGPT
+from manager.mail import Mail
+from manager.utils import read_config, get_current_time, is_valid_date
 
 
 class Commander:
     def __init__(self):
         self.tg = Tg()
         self.naver = Naver()
-        self.chatgpt = Chatgpt()
+        self.chatgpt = ChatGPT()
+        self.mail = Mail()
         self.config = read_config()
         self.tg_config = self.config.get("tg")
+        self.mail_config = self.config.get("mail")
 
     def __log_and_notify(self, chat_id, func_name, log_msg, tg_msg):
         # tg_whoami 명령어 이외에는 commander만 수행 가능
         if func_name not in ["tg_whoami"]:
-            if commander not in self.tg_config.get("chat_ids"):
+            if chat_id not in self.tg_config.get("chat_ids"):
                 tg_msg = "you are not commander"
 
         print(f'{datetime.datetime.now()}|{func_name}|{log_msg}')
@@ -50,7 +54,7 @@ class Commander:
         # None
 
         # process & send
-        tg_msg = f'Hi, here is your tg ID : {chat_id}'
+        tg_msg = f'Hi, here is your tg ID : {chat_id}\n'
         context.dispatcher.run_async(
             self.__log_and_notify,
             chat_id,
@@ -80,26 +84,12 @@ class Commander:
         )
 
     def tg_send(self, update, context):
-        # TODO.
-        # 네이버에 질의하여 기사 dict 의 array를 반환
-        news_list = self.naver.crawl()
-
-        # chatgpt에 질의하여 부정 기사 색출
-        bad_news_list = self.chatgpt.ask_if_bad_news()
-        
-        # 최종 포맷팅하여 전달
-        tg_msg = f''
-        for news in bad_news_list:
-            # TODO. 경영이슈, 완성차, 그룹사 묶기
-            tg_msg += f'[ㅇㅇㅇ] ㅇㅇㅇㅇ (ㅇㅇㅇ, ㅇㅇㅇ)'
-
-
         chat_id = update.message.chat_id
         log_msg = f'{chat_id}|{context.args}'
 
         # check input condition
-        if len(context.args) != 2:
-            tg_msg = f'❗️wrong format (ex. /send [id] [test/prd])\n'
+        if len(context.args) not in [1, 2]:
+            tg_msg = f'❗️wrong format (ex. /send [start_date] [end_date(optional)])\n'
             context.dispatcher.run_async(
                 self.__log_and_notify,
                 chat_id,
@@ -110,12 +100,14 @@ class Commander:
             )
             return
         
-        id = context.args[0]
-        mode = context.args[1]
-        member = self.config.get("member")
-        member_id_list = [x.get("id") for x in member]
-        if id != "all" and id not in member_id_list:
-            tg_msg = f'❗️{id} not in member ({",".join(member_id_list)})\n'
+        if len(context.args) == 1:
+            start_date = context.args[0]
+            end_date = start_date
+        elif len(context.args) == 2:
+            start_date, end_date = context.args[0], context.args[1]
+
+        if not is_valid_date(start_date) or not is_valid_date(end_date):
+            tg_msg = f'❗️wrong format (ex. /send 20230518, /send 20230518 20230520)\n'
             context.dispatcher.run_async(
                 self.__log_and_notify,
                 chat_id,
@@ -125,35 +117,56 @@ class Commander:
                 update=update
             )
             return
-
+        
         # process & send
-        target, send_list = list(), list()
-        if id == "all":
-            target = member
-        else:
-            for m in member:
-                if m.get("id") == id:
-                    target.append(m)
-                    break
+        tg_msg = f'crawling requested!\n'
+        context.dispatcher.run_async(
+            self.__log_and_notify,
+            chat_id,
+            'tg_send',
+            log_msg,
+            f'{tg_msg}',
+            update=update
+        )
+        news_list = self.naver.crawl(start_date, end_date) # 네이버에 질의하여 기사 dict 의 array를 반환
 
-        title = f'[fishingboat-{id}] 주간 수익 레포트 ({get_current_time("%Y/%m/%d")})'
-        for m in target:
-            if m.get("is_valid") == "Y":
-                id = m.get("id")
-                print(f'{id} mail sending ...')
+        # TODO.
+        # bad_news_list = self.chatgpt.ask_if_bad_news() # chatgpt에 질의하여 부정 기사 색출
+        bad_news_list = news_list
 
-                send_list.append(id)
-                content = self.gspread.create_report(m)
+        content, msg_common, msg_assemble, msg_group = f'', f'', f'', f''
+        for b in bad_news_list:
+            section = b.get("section")
+            if section in ["common"]:
+                msg_common += '<a href="{url}">{title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                     title=b.get("title"), 
+                                                                                                     publisher=b.get("publisher"), 
+                                                                                                     published_at=b.get("published_at"))
+            elif section in ["assemble"]:
+                msg_assemble += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                                   keyword=b.get("keyword"), 
+                                                                                                                   title=b.get("title"), 
+                                                                                                                   publisher=b.get("publisher"), 
+                                                                                                                   published_at=b.get("published_at"))
+            else:
+                msg_group += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                                keyword=b.get("keyword"), 
+                                                                                                                title=b.get("title"), 
+                                                                                                                publisher=b.get("publisher"), 
+                                                                                                                published_at=b.get("published_at"))
+        content += f'[경영이슈]<br>'
+        content += f'{msg_common}<br><br>'
+        content += f'[완성차]<br>'
+        content += f'{msg_assemble}<br><br>'
+        content += f'[그룹사]<br>'
+        content += f'{msg_group}<br><br>'
 
-                email_list = m.get("email_list")
-                if mode == "test":
-                    email_list = read_config().get("admin") # test 일 경우 관리자로 바꿔치기
-
-                threading.Thread(target=self.mail.send_email, args=(title, content, email_list, mode,)).start()
+        print(content)
         
-        tg_msg = f'no member to send :(\n'
-        if len(send_list) > 0:
-            tg_msg = f'mail successfully sent :) \n→ {",".join(send_list)}\n'
+        tg_msg = f'no news to send :(\n'
+        if len(content) > 0:
+            threading.Thread(target=self.mail.send_email, args=(content,)).start()
+            tg_msg = f'mail successfully sent :) \n'
         
         context.dispatcher.run_async(
             self.__log_and_notify,
@@ -163,4 +176,3 @@ class Commander:
             f'{tg_msg}',
             update=update
         )
-    

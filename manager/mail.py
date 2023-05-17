@@ -1,4 +1,4 @@
-from manager.utils import read_config
+from manager.utils import read_config, get_current_time
 
 import smtplib
 from email.mime.text import MIMEText
@@ -9,19 +9,17 @@ class Mail:
     def __init__(self):
         self.mail_config = read_config().get("mail")
 
-    def send_email(self, title, content, target_list, mode):
+    def send_email(self, content):
         session = smtplib.SMTP('smtp.gmail.com', 587)
         session.starttls()
         session.login(self.mail_config.get("id"), self.mail_config.get("pwd"))
 
-        for target in target_list:
-            msg = MIMEMultipart('alternative')
+        msg = MIMEMultipart('alternative')
 
-            msg['Subject'] = title
-            msg['From'] = self.mail_config.get("id")
-            msg['To'] = target
-            # if mode == "prd": # prd 일 경우 관리자 숨참
-            #     msg['Bcc'] = ",".join(self.admin_list)
+        msg['Subject'] = f'[BBANS] Daily News Issue ({get_current_time("%m/%d")})'
+        msg['From'] = self.mail_config.get("id")
+        msg['To'] = ",".join(self.mail_config.get("to"))
+        msg['Cc'] = ",".join(self.mail_config.get("cc"))
 
-            msg.attach(MIMEText(content, 'html', _charset='utf-8'))
-            session.send_message(msg)
+        msg.attach(MIMEText(content, 'html', _charset='utf-8'))
+        session.send_message(msg)
