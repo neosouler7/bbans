@@ -16,7 +16,7 @@ class Main:
     def run(self):
         start_msg = "## START bbans\n"
         print(start_msg)
-        self.tg.send_message(start_msg)
+        self.tg.send_message(self.tg_config.get("chat_ids"), start_msg)
 
 
         updater = Updater(token=self.tg_config.get("token"), use_context=True, workers=self.tg_config.get("workers"))

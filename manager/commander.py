@@ -27,7 +27,7 @@ class Commander:
 
         print(f'{datetime.datetime.now()}|{func_name}|{log_msg}')
         print(f'{tg_msg}\n')
-        self.tg.send_message(chat_id, tg_msg)
+        self.tg.send_message([chat_id], tg_msg)
 
     def tg_error(self, update, context):
         chat_id = update.message.chat_id
