@@ -27,7 +27,7 @@ class Commander:
 
         print(f'{datetime.datetime.now()}|{func_name}|{log_msg}')
         print(f'{tg_msg}\n')
-        self.tg.send_message(tg_msg)
+        self.tg.send_message(chat_id, tg_msg)
 
     def tg_error(self, update, context):
         chat_id = update.message.chat_id
@@ -128,11 +128,9 @@ class Commander:
             f'{tg_msg}',
             update=update
         )
-        news_list = self.naver.crawl(start_date, end_date) # 네이버에 질의하여 기사 dict 의 array를 반환
 
-        # TODO.
-        # bad_news_list = self.chatgpt.ask_if_bad_news() # chatgpt에 질의하여 부정 기사 색출
-        bad_news_list = news_list
+        news_list = self.naver.crawl(start_date, end_date) # 네이버에 질의하여 기사 dict 의 array를 반환
+        bad_news_list = self.chatgpt.ask_if_bad_news(news_list) # chatgpt에 질의하여 부정 기사 색출
 
         content, msg_common, msg_assemble, msg_group = f'', f'', f'', f''
         for b in bad_news_list:

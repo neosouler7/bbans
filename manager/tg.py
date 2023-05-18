@@ -15,21 +15,18 @@ class Tg:
             request=Request(con_pool_size=self.tg_config.get("conn_pool"))
         )
 
-    def send_message(self, message):
-        chat_ids = self.tg_config.get("chat_ids")
+    def send_message(self, chat_id, message):
         message += f'\n{datetime.datetime.now()}'
 
         # short mesage
         q = len(message) // MAX_MSG_LENGTH
         if q == 0:
-            for c in chat_ids:
-                self.bot.send_message(c, message, timeout=1)
+            self.bot.send_message(chat_id, message, timeout=1)
             return
 
         # long message
-        for c in chat_ids:
-            for i in range(q):
-                self.bot.send_message(
-                    c, message[MAX_MSG_LENGTH*i:MAX_MSG_LENGTH*(i+1)], timeout=1)
+        for i in range(q):
             self.bot.send_message(
-                c, message[MAX_MSG_LENGTH*q:], timeout=1)
+                chat_id, message[MAX_MSG_LENGTH*i:MAX_MSG_LENGTH*(i+1)], timeout=1)
+        self.bot.send_message(
+            chat_id, message[MAX_MSG_LENGTH*q:], timeout=1)
