@@ -15,7 +15,7 @@ class Tg:
             request=Request(con_pool_size=self.tg_config.get("conn_pool"))
         )
 
-    def send_message(self, chat_ids, message):
+    def send_message(self, chat_id, message):
         message += f'\n{datetime.datetime.now()}'
 
         # short mesage
@@ -32,3 +32,8 @@ class Tg:
                     chat_id, message[MAX_MSG_LENGTH*i:MAX_MSG_LENGTH*(i+1)], timeout=1)
             self.bot.send_message(
                 chat_id, message[MAX_MSG_LENGTH*q:], timeout=1)
+            
+    def logger(self, func_name, url, error):
+        message = f'{func_name}\n{url}\n{error}'
+        for chat_id in self.tg_config.get("chat_ids"):
+            self.send_message(chat_id, message)

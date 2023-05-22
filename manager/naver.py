@@ -8,6 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 
+from manager.tg import Tg
 from manager.utils import read_config, get_current_time, to_date_dot, DATE_FORMAT_YmdHMS
 from collections import defaultdict
 from datetime import datetime
@@ -17,6 +18,7 @@ TARGET_URL = "https://search.naver.com/search.naver?where=news&sort=1&ds={start_
 
 class Naver:
     def __init__(self):
+        self.tg = Tg()
         self.keywords = read_config().get("keywords")
         options = Options()
         options.add_argument("--headless")
@@ -63,35 +65,44 @@ class Naver:
             
             self.browser.get(target_url)
             # self.__wait_for("sc_page") # 각 신문사 별 하단 페이징 요소 로딩 될 때까지 대기
+            try:
+                news_list = self.browser.find_element(By.CLASS_NAME, "list_news").find_elements(By.TAG_NAME, "li")
+                for news in news_list:
+                    info_group = news.find_element(By.CLASS_NAME, "news_info").find_element(By.CLASS_NAME, "info_group")
+                    news_area = news.find_element(By.CLASS_NAME, "news_area")
+                    news_tit = news_area.find_element(By.CLASS_NAME, "news_tit")
 
-            news_list = self.browser.find_element(By.CLASS_NAME, "list_news").find_elements(By.TAG_NAME, "li")
-            for news in news_list:
-                info_group = news.find_element(By.CLASS_NAME, "news_info").find_element(By.CLASS_NAME, "info_group")
-                news_area = news.find_element(By.CLASS_NAME, "news_area")
-                news_tit = news_area.find_element(By.CLASS_NAME, "news_tit")
+                    publisher = info_group.find_element(By.TAG_NAME, "a").text
+                    title, url = news_tit.text, news_tit.get_attribute("href")
 
-                publisher = info_group.find_element(By.TAG_NAME, "a").text
-                title, url = news_tit.text, news_tit.get_attribute("href")
-
-                temp = self.__get_news_template(
-                    section = section,
-                    keyword = keyword,
-                    url = url, 
-                    title = title, 
-                    publisher = publisher,
-                    published_at = f"{start_date[4:6]}/{start_date[6:]}"
-                )
-                self.news.append(temp)
+                    temp = self.__get_news_template(
+                        section = section,
+                        keyword = keyword,
+                        url = url, 
+                        title = title, 
+                        publisher = publisher,
+                        published_at = f"{start_date[4:6]}/{start_date[6:]}"
+                    )
+                    self.news.append(temp)
 
 
-            page_list = self.browser.find_element(By.CLASS_NAME, "sc_page").find_element(By.CLASS_NAME, "sc_page_inner").find_elements(By.TAG_NAME, "a")
-            max_page = max([p.text for p in page_list])
-            for page in page_list:
-                if page.text == max_page and page.get_attribute("aria-pressed") == "true": # 리턴되는 가장 큰 페이지가 true로 반환 될 때
-                    return
+                page_list = self.browser.find_element(By.CLASS_NAME, "sc_page").find_element(By.CLASS_NAME, "sc_page_inner").find_elements(By.TAG_NAME, "a")
+                max_page = max([p.text for p in page_list])
+                for page in page_list:
+                    if page.text == max_page and page.get_attribute("aria-pressed") == "true": # 리턴되는 가장 큰 페이지가 true로 반환 될 때
+                        return
 
-            idx += 1
-            article_cnt = 10 * idx + 1  
+                idx += 1
+                article_cnt = 10 * idx + 1  
+
+            except NoSuchElementException:
+                try:
+                    not_found = self.browser.find_element(By.CLASS_NAME, "api_noresult_wrap")
+                    if not_found:
+                        break
+
+                except NoSuchElementException as e:
+                    self.tg.logger('get_news_info', target_url, e)
 
     def finish(self):
         self.browser.quit()

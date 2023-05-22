@@ -130,41 +130,41 @@ class Commander:
         )
 
         news_list = self.naver.crawl(start_date, end_date) # 네이버에 질의하여 기사 dict 의 array를 반환
-        bad_news_list = self.chatgpt.ask_if_bad_news(news_list) # chatgpt에 질의하여 부정 기사 색출
-
-        content, msg_common, msg_assemble, msg_group = f'', f'', f'', f''
-        for b in bad_news_list:
-            section = b.get("section")
-            if section in ["common"]:
-                msg_common += '<a href="{url}">{title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
-                                                                                                     title=b.get("title"), 
-                                                                                                     publisher=b.get("publisher"), 
-                                                                                                     published_at=b.get("published_at"))
-            elif section in ["assemble"]:
-                msg_assemble += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
-                                                                                                                   keyword=b.get("keyword"), 
-                                                                                                                   title=b.get("title"), 
-                                                                                                                   publisher=b.get("publisher"), 
-                                                                                                                   published_at=b.get("published_at"))
-            else:
-                msg_group += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
-                                                                                                                keyword=b.get("keyword"), 
-                                                                                                                title=b.get("title"), 
-                                                                                                                publisher=b.get("publisher"), 
-                                                                                                                published_at=b.get("published_at"))
-        content += f'[경영이슈]<br>'
-        content += f'{msg_common}<br><br>'
-        content += f'[완성차]<br>'
-        content += f'{msg_assemble}<br><br>'
-        content += f'[그룹사]<br>'
-        content += f'{msg_group}<br><br>'
-
-        print(content)
+        bad_news_list = news_list
+        # bad_news_list = self.chatgpt.ask_if_bad_news(news_list) # chatgpt에 질의하여 부정 기사 색출
         
         tg_msg = f'no news to send :(\n'
-        if len(content) > 0:
-            threading.Thread(target=self.mail.send_email, args=(content,)).start()
+        if len(bad_news_list) > 0:
+            content, msg_common, msg_assemble, msg_group = f'', f'', f'', f''
+            for b in bad_news_list:
+                section = b.get("section")
+                if section in ["common"]:
+                    msg_common += '<a href="{url}">{title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                        title=b.get("title"), 
+                                                                                                        publisher=b.get("publisher"), 
+                                                                                                        published_at=b.get("published_at"))
+                elif section in ["assemble"]:
+                    msg_assemble += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                                    keyword=b.get("keyword"), 
+                                                                                                                    title=b.get("title"), 
+                                                                                                                    publisher=b.get("publisher"), 
+                                                                                                                    published_at=b.get("published_at"))
+                else:
+                    msg_group += '<a href="{url}">[{keyword}] {title}</a> ({publisher}, {published_at})<br>'.format(url=b.get("url"), 
+                                                                                                                    keyword=b.get("keyword"), 
+                                                                                                                    title=b.get("title"), 
+                                                                                                                    publisher=b.get("publisher"), 
+                                                                                                                    published_at=b.get("published_at"))
+            content += f'[경영이슈]<br>'
+            content += f'{msg_common}<br><br>'
+            content += f'[완성차]<br>'
+            content += f'{msg_assemble}<br><br>'
+            content += f'[그룹사]<br>'
+            content += f'{msg_group}<br><br>'
+
             tg_msg = f'mail successfully sent :) \n'
+            threading.Thread(target=self.mail.send_email, args=(content,)).start()
+            
         
         context.dispatcher.run_async(
             self.__log_and_notify,

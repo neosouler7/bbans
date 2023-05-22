@@ -1,5 +1,6 @@
 /venv
 config.json
+test.py
 chromedriver_mac64/
 
 # Byte-compiled / optimized / DLL files
